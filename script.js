@@ -1,44 +1,37 @@
-// Baum mit Farbwechsel (grün → rot → gelb → pink → weiß) und kontinuierlichem Wachstum
-// - Pro Kalendertag einmal gießen => growth +1 und Farbindex +1 (zyklisch)
-// - 3 verpasste Tage => tot
-// - Start: klein; wächst bei jedem Gießen per Skalierung (Stamm + Krone)
+// Gieß-Logik: bis zu 10x pro Stunde (rolling window 60 Minuten)
+// Bei jedem Gießen: Farbwechsel (grün→rot→gelb→pink→weiß→grün), sichtbares Wachstum
+// "Tod": nach 3 Stunden ohne Gießen (kannst du leicht anpassen) → Demonstrationszweck
+// Wenn du wieder Kalendertage willst, sag Bescheid – ich stelle die Schwelle zurück.
 
-const STORAGE_KEY = 'treeState.v5';
+const STORAGE_KEY = 'treeState.v6';
 
-// Datumshilfen (Kalendertage, lokal)
-function todayKey(d = new Date()) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-function daysBetween(dateA, dateB) {
-  const a = new Date(dateA);
-  const b = new Date(dateB);
-  a.setHours(0,0,0,0);
-  b.setHours(0,0,0,0);
-  const diffMs = b - a;
-  return Math.round(diffMs / (1000 * 60 * 60 * 24));
-}
-
-// Farben in Reihenfolge
 const COLORS = ['green', 'red', 'yellow', 'pink', 'white'];
+const HOUR_MS = 60 * 60 * 1000;
+const MAX_WATERS_PER_HOUR = 10;
+const HOURS_TO_DEAD = 3; // nach 3 Stunden ohne Gießen stirbt der Baum (fürs Testen schneller sichtbar)
+
+function now() { return Date.now(); }
 
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
       return {
-        lastWateredDate: null, // 'YYYY-MM-DD'
-        growth: 0,             // Wachstumsschritte
-        colorIndex: 0,         // zeigt auf COLORS
+        lastWateredTs: null,
+        growth: 0,
+        colorIndex: 0,
         dead: false,
-        missedDays: 0,
-        createdDate: todayKey(),
-        version: 5
+        waterLog: [], // Zeitstempel der letzten Gießvorgänge
+        version: 6
       };
     }
-    return JSON.parse(raw);
+    const s = JSON.parse(raw);
+    // Fallbacks
+    s.waterLog = Array.isArray(s.waterLog) ? s.waterLog : [];
+    if (typeof s.growth !== 'number') s.growth = 0;
+    if (typeof s.colorIndex !== 'number') s.colorIndex = 0;
+    if (typeof s.dead !== 'boolean') s.dead = false;
+    return s;
   } catch {
     localStorage.removeItem(STORAGE_KEY);
     return loadState();
@@ -48,48 +41,54 @@ function saveState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-function canWaterToday(state) {
-  return !state.dead && state.lastWateredDate !== todayKey();
-}
-
-function updateMissedDays(state) {
-  const today = todayKey();
-  const anchor = state.lastWateredDate || state.createdDate;
-  const diff = daysBetween(anchor, today);
-  state.missedDays = Math.max(0, diff);
-  if (state.missedDays >= 3) state.dead = true;
+function pruneWaterLog(state) {
+  const cutoff = now() - HOUR_MS;
+  state.waterLog = state.waterLog.filter(t => t >= cutoff);
   return state;
 }
-
+function canWaterNow(state) {
+  if (state.dead) return false;
+  pruneWaterLog(state);
+  return state.waterLog.length < MAX_WATERS_PER_HOUR;
+}
 function water(state) {
-  if (!canWaterToday(state)) return state;
-  state.lastWateredDate = todayKey();
-  state.growth = (state.growth || 0) + 1;
-  state.colorIndex = (state.colorIndex + 1) % COLORS.length; // Farbe weiterschalten
-  state.missedDays = 0;
+  if (!canWaterNow(state)) return state;
+  const t = now();
+  state.lastWateredTs = t;
+  state.waterLog.push(t);
+  state.growth += 1;
+  state.colorIndex = (state.colorIndex + 1) % COLORS.length;
   state.dead = false;
+  pruneWaterLog(state);
   saveState(state);
   return state;
 }
+function updateAliveState(state) {
+  // Wenn seit dem letzten Gießen mehr als HOURS_TO_DEAD Stunden vergangen sind → tot
+  if (state.lastWateredTs == null) {
+    state.dead = false; // vor dem ersten Gießen nicht tot
+    return state;
+  }
+  const elapsed = now() - state.lastWateredTs;
+  state.dead = elapsed >= HOURS_TO_DEAD * HOUR_MS;
+  return state;
+}
 
-// Wachstumsdarstellung: kontinuierliche Skalierung
-// Basisskalen (klein starten), Wachstum pro Gießen: +6% Größe bis Max
+// Wachstum: pro Gießen +7% Größe, begrenzt auf 250%
 function computeScales(growth) {
-  const baseTrunk = 1.0;    // Stamm-Basis
-  const baseCrown = 1.0;    // Krone-Basis
-  const step = 0.06;        // pro Gießen 6% größer
-  const maxScale = 2.2;     // obere Grenze
-  const trunkScale = Math.min(maxScale, baseTrunk + growth * step);
-  const crownScale = Math.min(maxScale, baseCrown + growth * step);
+  const step = 0.07;
+  const maxScale = 2.5;
+  const scale = Math.min(maxScale, 1 + growth * step);
+  // Stamm darf etwas langsamer wachsen, für schönere Proportionen
+  const trunkScale = Math.min(maxScale, 1 + growth * (step * 0.85));
+  const crownScale = scale;
   return { trunkScale, crownScale };
 }
 
-function applyColorClass(treeEl, colorIndex) {
-  // alle Farbklassen entfernen, neue hinzufügen
+function applyColorClass(treeEl, idx) {
   const classes = ['color-green','color-red','color-yellow','color-pink','color-white'];
   classes.forEach(c => treeEl.classList.remove(c));
-  const cname = `color-${COLORS[colorIndex]}`;
-  treeEl.classList.add(cname);
+  treeEl.classList.add(`color-${COLORS[idx]}`);
 }
 
 function render(state) {
@@ -103,50 +102,33 @@ function render(state) {
 
   container.classList.remove('alive', 'warning', 'dead');
 
+  const watersThisHour = (pruneWaterLog(state), state.waterLog.length);
+
   if (state.dead) {
     container.classList.add('dead');
     badge.textContent = 'Status: Tot 🌧️';
     waterBtn.disabled = true;
-  } else if (state.missedDays >= 2) {
+  } else if (watersThisHour >= MAX_WATERS_PER_HOUR - 2) {
     container.classList.add('warning');
-    badge.textContent = 'Status: Kritisch! 🥀';
-    waterBtn.disabled = !canWaterToday(state);
+    badge.textContent = 'Status: Fast Limit ⏳';
+    waterBtn.disabled = !canWaterNow(state);
   } else {
     container.classList.add('alive');
     badge.textContent = 'Status: Gesund 🌿';
-    waterBtn.disabled = !canWaterToday(state);
+    waterBtn.disabled = !canWaterNow(state);
   }
 
   // Farbe anwenden
   applyColorClass(tree, state.colorIndex);
 
-  // Größe anwenden (Skalierung Stamm + Krone)
+  // Größe anwenden via CSS-Variablen
   const { trunkScale, crownScale } = computeScales(state.growth);
-  // Setze CSS-Varianten via style.transform auf den ::before/::after-Elementen:
-  // Wir nutzen CSS-Variablen durch Inline-Styles tricksen? Pseudo-Elemente nehmen kein Inline-Style an.
-  // Lösung: setze transform auf den Container und kompensiere Position.
-  // Besser: wir steuern beide Pseudo-Elemente über CSS-Variablen.
   tree.style.setProperty('--trunk-scale', trunkScale);
   tree.style.setProperty('--crown-scale', crownScale);
 
-  // Da Pseudo-Elemente keine Inline-Styles lesen, definieren wir diese Variablen in CSS via transform: scale(var(--...))
-  // (siehe unten in ensureScaleStyles())
-
   streakEl.textContent = `Gieß-Zähler: ${state.growth}`;
-  lastEl.textContent = `Zuletzt gegossen: ${state.lastWateredDate ? state.lastWateredDate : '–'}`;
-  daysEl.textContent = `Tage seit letztem Gießen: ${state.lastWateredDate ? state.missedDays : '–'}`;
-}
-
-function ensureScaleStyles() {
-  // Fügt einmalig CSS ein, damit ::before/::after die Skalierung aus Variablen lesen.
-  if (document.getElementById('dynamic-scale-style')) return;
-  const style = document.createElement('style');
-  style.id = 'dynamic-scale-style';
-  style.textContent = `
-    #tree::before { transform: translateX(-50%) scale(var(--trunk-scale, 1)); }
-    #tree::after  { transform: translateX(-50%) scale(var(--crown-scale, 1)); }
-  `;
-  document.head.appendChild(style);
+  lastEl.textContent = `Zuletzt gegossen: ${state.lastWateredTs ? new Date(state.lastWateredTs).toLocaleTimeString() : '–'}`;
+  daysEl.textContent = `Gießvorgänge in dieser Stunde: ${watersThisHour} / ${MAX_WATERS_PER_HOUR}`;
 }
 
 function rainEffect() {
@@ -165,38 +147,45 @@ function resetAll() {
   localStorage.removeItem(STORAGE_KEY);
   const init = loadState();
   saveState(init);
-  render(updateMissedDays(init));
+  render(updateAliveState(init));
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  ensureScaleStyles();
-
   let state = loadState();
-  state = updateMissedDays(state);
+  state = pruneWaterLog(state);
+  state = updateAliveState(state);
   saveState(state);
   render(state);
 
   const waterBtn = document.getElementById('waterBtn');
   const tree = document.getElementById('tree');
+
   function tryWater() {
     let s = loadState();
-    if (!canWaterToday(s)) return;
+    s = pruneWaterLog(s);
+    s = updateAliveState(s);
+    if (!canWaterNow(s)) {
+      render(s);
+      return;
+    }
     s = water(s);
     rainEffect();
-    s = updateMissedDays(s);
+    s = updateAliveState(s);
     saveState(s);
     render(s);
   }
+
   waterBtn.addEventListener('click', tryWater);
   tree.addEventListener('click', tryWater);
 
   document.getElementById('resetBtn').addEventListener('click', resetAll);
 
-  // Über Nacht Status aktualisieren
+  // Regelmäßige Aktualisierung: Limit-Fenster und "Tod" überwachen
   setInterval(() => {
     let s = loadState();
-    s = updateMissedDays(s);
+    s = pruneWaterLog(s);
+    s = updateAliveState(s);
     saveState(s);
     render(s);
-  }, 60000);
+  }, 5000);
 });
