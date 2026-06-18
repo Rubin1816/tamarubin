@@ -11,7 +11,7 @@
     <h1>Mein Baum</h1>
     <div class="status">
       <div id="healthBadge" class="badge">Status: –</div>
-      <div id="streak" class="meta">Gieß-Tage: 0</div>
+      <div id="streak" class="meta">Gieß-Zähler: 0</div>
       <div id="lastWatered" class="meta">Zuletzt gegossen: –</div>
       <div id="daysSince" class="meta">Verpasste Intervalle: –</div>
     </div>
@@ -31,14 +31,8 @@
         „Tages“-Länge: <strong><span id="intervalLabel">1440</span> Minuten</strong>
       </label>
       <input id="intervalMinutes" type="range" min="1" max="1440" step="1" value="1440" />
-      <p class="hint">
-        Stelle ein, wie viele Minuten ein „Tag“ dauert. Nach 3 verpassten „Tagen“ stirbt der Baum.
-      </p>
+      <p class="hint">Nach 3 verpassten Intervallen stirbt der Baum. Für Tests: 1 Minute.</p>
     </section>
-
-    <p class="hint">
-      Standard: 1440 Minuten (= 24h). Für Tests gern auf 1 Minute stellen.
-    </p>
   </main>
 
   <footer>
@@ -48,4 +42,5 @@
   <script src="script.js"></script>
 </body>
 </html>
+
 
