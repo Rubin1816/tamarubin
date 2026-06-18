@@ -15,9 +15,12 @@
   --c-pink: radial-gradient(circle at 40% 40%, #f48fb1 0%, #ec407a 60%, #ad1457 100%);
   --c-white: radial-gradient(circle at 40% 40%, #ffffff 0%, #e5e7eb 60%, #cbd5e1 100%);
 
-  /* Skalierungs-Variablen für Stamm und Krone (werden von JS gesetzt) */
+  /* Skalierungs-Variablen (werden von JS gesetzt) */
   --trunk-scale: 1;
   --crown-scale: 1;
+
+  /* Blüten: werden angezeigt, wenn der Baum ausgewachsen ist; skaliert separat */
+  --blossom-scale: 0; /* 0 = unsichtbar, >0 = sichtbar & größer */
 }
 
 * { box-sizing: border-box; }
@@ -67,14 +70,13 @@ h1 { margin: 0 0 8px 0; font-size: 28px; }
 
 #treeArea {
   position: relative;
-  height: 320px;
+  height: 340px;
   background: linear-gradient(180deg, #cfe8ff 0%, #e7f0ff 100%);
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid #e5e7eb;
   transition: background 600ms ease;
 }
-
 #ground {
   position: absolute;
   bottom: 0; left:0; right:0;
@@ -82,7 +84,6 @@ h1 { margin: 0 0 8px 0; font-size: 28px; }
   background: linear-gradient(0deg, #8bc34a 0%, #a5d66a 60%, transparent 100%);
   transition: background 600ms ease;
 }
-
 /* Abendrot-Theme bei Meilenstein */
 #treeArea.evening {
   background: linear-gradient(180deg, #ff9966 0%, #ff5e62 100%);
@@ -96,8 +97,8 @@ h1 { margin: 0 0 8px 0; font-size: 28px; }
   bottom: 80px;
   left: 50%;
   transform: translateX(-50%);
-  width: 140px;
-  height: 200px;
+  width: 160px;
+  height: 220px;
   cursor: pointer;
 }
 
@@ -108,11 +109,7 @@ h1 { margin: 0 0 8px 0; font-size: 28px; }
   left: 50%;
   transform: translateX(-50%);
   transform-origin: bottom center;
-}
-
-/* sanfte Animationen – nur auf erlaubten Props */
-#tree::before, #tree::after {
-  transition: transform 220ms ease, background 220ms ease;
+  transition: transform 220ms ease, background 220ms ease, opacity 220ms ease;
 }
 
 /* Stamm – klein startend, skaliert über var(--trunk-scale) */
@@ -129,8 +126,8 @@ h1 { margin: 0 0 8px 0; font-size: 28px; }
 /* Krone – klein startend, skaliert über var(--crown-scale) */
 #tree::after {
   bottom: 26px;
-  width: 60px;
-  height: 60px;
+  width: 70px;
+  height: 70px;
   background: var(--c-green);
   border-radius: 50%;
   filter: drop-shadow(0 8px 12px rgba(46,125,50,0.35));
@@ -143,6 +140,47 @@ h1 { margin: 0 0 8px 0; font-size: 28px; }
 .color-yellow::after{ background: var(--c-yellow); }
 .color-pink::after  { background: var(--c-pink); }
 .color-white::after { background: var(--c-white); }
+
+/* Blüten: zusätzliche Pseudo-Elemente mit CSS-Masken */
+#tree .blossoms {
+  position: absolute;
+  bottom: 26px;
+  left: 50%;
+  width: 140px;
+  height: 140px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  opacity: 0;
+  transition: transform 220ms ease, opacity 220ms ease;
+  transform-origin: bottom center;
+}
+
+/* Jede einzelne Blüte */
+#tree .blossoms .b {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: radial-gradient(circle at 40% 40%, #ffc1d9 0%, #ff8fb3 60%, #e91e63 100%);
+  border-radius: 50%;
+  filter: drop-shadow(0 2px 2px rgba(233,30,99,0.25));
+  transform: scale(1);
+}
+
+/* Blüten-Positionen rund um die Krone */
+#tree .blossoms .b.p1 { top: 14px; left: 14px; }
+#tree .blossoms .b.p2 { top: 8px;  left: 60px; }
+#tree .blossoms .b.p3 { top: 22px; left: 104px; }
+#tree .blossoms .b.p4 { top: 54px; left: 24px; }
+#tree .blossoms .b.p5 { top: 46px; left: 74px; }
+#tree .blossoms .b.p6 { top: 60px; left: 110px; }
+#tree .blossoms .b.p7 { top: 88px; left: 40px; }
+#tree .blossoms .b.p8 { top: 96px; left: 92px; }
+
+/* Sichtbarkeits- und Größensteuerung per Variablen */
+#tree.blooming .blossoms {
+  opacity: 1;
+  transform: translateX(-50%) scale(var(--blossom-scale));
+}
 
 /* Statusfarben */
 .alive .badge { background: #ecfdf5; color: #065f46; }
