@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tamagotchi-Baum</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>Mein Baum</h1>
+    <div class="status">
+      <div id="healthBadge" class="badge">Status: –</div>
+      <div id="streak" class="meta">Gieß-Tage: 0</div>
+      <div id="lastWatered" class="meta">Zuletzt gegossen: –</div>
+      <div id="daysSince" class="meta">Tage seit letztem Gießen: –</div>
+    </div>
+
+    <div id="treeArea">
+      <div id="tree" title="Klicke, um zu gießen"></div>
+      <div id="ground"></div>
+    </div>
+
+    <div class="controls">
+      <button id="waterBtn">Baum gießen</button>
+      <button id="resetBtn" class="ghost">Neustart</button>
+    </div>
+
+    <p class="hint">
+      Hinweis: Du kannst den Baum nur einmal pro Kalendertag gießen. Wenn du 3 Tage gar nicht eingeloggt/gegossen hast, stirbt der Baum.
+    </p>
+  </main>
+
+  <footer>
+    <small>Speicherung lokal im Browser (localStorage).</small>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
