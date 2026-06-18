@@ -1,178 +1,208 @@
-:root{
-  --bg: #f3f7fb;
-  --text: #1f2937;
-  --accent: #2f855a;
-  --accent-dark: #276749;
-  --warning: #b45309;
-  --danger: #b91c1c;
-  --card: #ffffff;
-  --muted: #6b7280;
-}
-* { box-sizing: border-box; }
-body {
-  margin: 0;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  color: var(--text);
-  background: linear-gradient(180deg, #e7f0ff 0%, var(--bg) 100%);
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-.container {
-  margin: 24px auto;
-  padding: 16px;
-  max-width: 560px;
-  width: 100%;
-  background: var(--card);
-  border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-}
-h1 { margin: 0 0 8px 0; font-size: 28px; }
-.status {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px 12px;
-  align-items: center;
-  margin-bottom: 16px;
-}
-.badge {
-  grid-column: 1 / -1;
-  display: inline-block;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: #e6fffa;
-  color: var(--accent-dark);
-  font-weight: 600;
-  width: max-content;
-}
-.meta { color: var(--muted); font-size: 14px; }
+// Tamagotchi-Baum mit einstellbarer "Tageslänge" und feinen Wachstumsstufen
+// - Start als Setzling (eigentlich Saat -> Keim -> Setzling ...)
+// - Pro Intervall einmal gießen = Wachstum +1
+// - Nach 3 verpassten Intervallen = tot
 
-#treeArea {
-  position: relative;
-  height: 300px;
-  background: linear-gradient(180deg, #cfe8ff 0%, #e7f0ff 100%);
-  border-radius: 16px;
-  overflow: hidden;
-  border: 1px solid #e5e7eb;
+const STORAGE_KEY = 'treeState.v3';      // neue Version wegen Stufen
+const CONFIG_KEY  = 'treeConfig.v2';
+
+const DEFAULT_INTERVAL_MINUTES = 1440;
+
+function now() { return Date.now(); }
+
+function loadConfig() {
+  const raw = localStorage.getItem(CONFIG_KEY);
+  if (!raw) return { intervalMinutes: DEFAULT_INTERVAL_MINUTES };
+  try {
+    const c = JSON.parse(raw);
+    if (!c.intervalMinutes) c.intervalMinutes = DEFAULT_INTERVAL_MINUTES;
+    return c;
+  } catch {
+    return { intervalMinutes: DEFAULT_INTERVAL_MINUTES };
+  }
 }
-#ground {
-  position: absolute;
-  bottom: 0;
-  left:0; right:0;
-  height: 80px;
-  background: linear-gradient(0deg, #8bc34a 0%, #a5d66a 60%, transparent 100%);
-}
-#tree {
-  position: absolute;
-  bottom: 80px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 140px;
-  height: 180px;
-  cursor: pointer;
+function saveConfig(cfg) {
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
 }
 
-/* Basisformen: Stamm und Krone (werden je Stufe angepasst) */
-#tree::before {
-  /* Stamm */
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 22px;
-  height: 70px;
-  background: #7b4b2a;
-  border-radius: 6px;
-  box-shadow: inset 0 -6px 0 rgba(0,0,0,0.1);
+function loadState() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    return {
+      lastWateredTs: null,
+      growth: 0,          // 0 = seed (Saat)
+      dead: false,
+      missedIntervals: 0,
+      createdTs: now(),
+      version: 3
+    };
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    localStorage.removeItem(STORAGE_KEY);
+    return loadState();
+  }
 }
-#tree::after {
-  /* Krone */
-  content: "";
-  position: absolute;
-  bottom: 56px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 140px;
-  height: 140px;
-  background: radial-gradient(circle at 40% 40%, #66bb6a 0%, #43a047 60%, #2e7d32 100%);
-  border-radius: 50%;
-  filter: drop-shadow(0 8px 12px rgba(46,125,50,0.35));
+function saveState(state) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-/* WACHSTUMSSTUFEN */
-.tree-seed::before    { width: 8px; height: 10px; bottom: 0; background: #6b4f2a; border-radius: 4px; }
-.tree-seed::after     { width: 0; height: 0; }
-
-.tree-sprout::before  { width: 6px; height: 14px; background: #6b4f2a; }
-.tree-sprout::after   { width: 20px; height: 12px; bottom: 12px; border-radius: 12px 12px 12px 12px; background: linear-gradient(180deg, #7ed957, #46a049); }
-
-.tree-seedling::before{ width: 8px; height: 20px; }
-.tree-seedling::after { width: 36px; height: 24px; bottom: 20px; border-radius: 18px; }
-
-.tree-sapling::before { width: 12px; height: 40px; }
-.tree-sapling::after  { width: 70px; height: 50px; bottom: 36px; border-radius: 30px; }
-
-.tree-small::before   { width: 16px; height: 55px; }
-.tree-small::after    { width: 90px;  height: 90px;  bottom: 46px; }
-
-.tree-medium::before  { width: 20px; height: 70px; }
-.tree-medium::after   { width: 120px; height: 120px; bottom: 52px; }
-
-.tree-large::before   { width: 24px; height: 85px; }
-.tree-large::after    { width: 160px; height: 160px; bottom: 60px; }
-
-.tree-giant::before   { width: 30px; height: 100px; }
-.tree-giant::after    { width: 210px; height: 210px; bottom: 74px; }
-
-.controls {
-  display: flex;
-  gap: 8px;
-  margin: 12px 0 0 0;
-  flex-wrap: wrap;
+function msPerInterval() {
+  const cfg = loadConfig();
+  return cfg.intervalMinutes * 60 * 1000;
 }
-.controls.interval {
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 12px;
-}
-button {
-  appearance: none;
-  border: none;
-  background: var(--accent);
-  color: white;
-  font-weight: 600;
-  padding: 10px 14px;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: transform .05s ease, background .2s ease, opacity .2s ease;
-}
-button:hover { background: var(--accent-dark); }
-button:active { transform: translateY(1px); }
-button:disabled { opacity: 0.6; cursor: not-allowed; }
-button.ghost { background: #eef2f7; color: #374151; }
-.hint { color: var(--muted); font-size: 14px; margin-top: 12px; }
-footer { text-align: center; color: var(--muted); margin: 8px 0 24px; font-size: 13px; }
 
-.alive .badge { background: #ecfdf5; color: #065f46; }
-.warning .badge { background: #fffbeb; color: var(--warning); }
-.dead .badge { background: #fef2f2; color: var(--danger); }
+function computeMissedIntervals(state) {
+  const anchor = state.lastWateredTs ?? state.createdTs;
+  const elapsed = Math.max(0, now() - anchor);
+  const intervals = Math.floor(elapsed / msPerInterval());
+  return intervals;
+}
 
-/* Regen-Animation */
-@keyframes rain {
-  0%   { opacity: 0; transform: translate(-50%, -120px) scale(0.8); }
-  10%  { opacity: 1; }
-  100% { opacity: 0; transform: translate(-50%, 30px) scale(1.1); }
+function updateMissed(state) {
+  state.missedIntervals = computeMissedIntervals(state);
+  if (state.missedIntervals >= 3) state.dead = true;
+  return state;
 }
-.drop {
-  position: absolute;
-  top: -10px;
-  left: 50%;
-  width: 6px;
-  height: 10px;
-  background: rgba(66,153,225,0.9);
-  border-radius: 3px;
-  transform: translateX(-50%);
-  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.15));
-  animation: rain 700ms ease forwards;
+
+function canWaterNow(state) {
+  if (state.dead) return false;
+  if (state.lastWateredTs === null) return true;
+  const missed = computeMissedIntervals(state);
+  return missed >= 1;
 }
+
+function water(state) {
+  if (!canWaterNow(state)) return state;
+  state.lastWateredTs = now();
+  state.growth = (state.growth || 0) + 1;
+  state.missedIntervals = 0;
+  state.dead = false;
+  saveState(state);
+  return state;
+}
+
+// Mehr Stufen: 0 seed, 1 sprout, 2 seedling, 3 sapling, 4 small, 7 medium, 12 large, 18 giant
+function growthStageClass(growth) {
+  if (growth <= 0) return 'tree-seed';          // Saat
+  if (growth <= 1) return 'tree-sprout';        // Keim
+  if (growth <= 2) return 'tree-seedling';      // Setzling
+  if (growth <= 3) return 'tree-sapling';       // Jungbaum
+  if (growth <= 6) return 'tree-small';
+  if (growth <= 11) return 'tree-medium';
+  if (growth <= 17) return 'tree-large';
+  return 'tree-giant';
+}
+
+function render(state) {
+  const container = document.querySelector('.container');
+  const badge = document.getElementById('healthBadge');
+  const streakEl = document.getElementById('streak');
+  const lastEl = document.getElementById('lastWatered');
+  const daysEl = document.getElementById('daysSince');
+  const tree = document.getElementById('tree');
+  const waterBtn = document.getElementById('waterBtn');
+
+  container.classList.remove('alive', 'warning', 'dead');
+
+  if (state.dead) {
+    container.classList.add('dead');
+    badge.textContent = 'Status: Tot 🌧️';
+    waterBtn.disabled = true;
+  } else if (state.missedIntervals >= 2) {
+    container.classList.add('warning');
+    badge.textContent = 'Status: Kritisch! 🥀';
+    waterBtn.disabled = !canWaterNow(state);
+  } else {
+    container.classList.add('alive');
+    badge.textContent = 'Status: Gesund 🌿';
+    waterBtn.disabled = !canWaterNow(state);
+  }
+
+  const cfg = loadConfig();
+  const mins = cfg.intervalMinutes;
+  const lastStr = state.lastWateredTs ? new Date(state.lastWateredTs).toLocaleString() : '–';
+
+  // Baumklasse setzen
+  tree.className = '';
+  tree.classList.add(growthStageClass(state.growth));
+
+  streakEl.textContent = `Gieß-Zähler: ${state.growth}`;
+  lastEl.textContent = `Zuletzt gegossen: ${lastStr}`;
+  daysEl.textContent = `Verpasste Intervalle: ${state.lastWateredTs ? state.missedIntervals : '–'} (Intervall: ${mins} Min)`;
+}
+
+function rainEffect() {
+  const area = document.getElementById('treeArea');
+  for (let i = 0; i < 12; i++) {
+    const drop = document.createElement('div');
+    drop.className = 'drop';
+    drop.style.left = `${30 + Math.random()*40}%`;
+    drop.style.animationDelay = `${i * 40}ms`;
+    area.appendChild(drop);
+    setTimeout(() => drop.remove(), 900);
+  }
+}
+
+function resetAll() {
+  localStorage.removeItem(STORAGE_KEY);
+  const init = loadState();
+  saveState(init);
+  render(updateMissed(init));
+}
+
+function initIntervalControls() {
+  const slider = document.getElementById('intervalMinutes');
+  const label = document.getElementById('intervalLabel');
+  const cfg = loadConfig();
+  slider.value = String(cfg.intervalMinutes);
+  label.textContent = String(cfg.intervalMinutes);
+
+  slider.addEventListener('input', (e) => {
+    label.textContent = String(parseInt(e.target.value, 10));
+  });
+  slider.addEventListener('change', (e) => {
+    const val = Math.max(1, parseInt(e.target.value, 10) || DEFAULT_INTERVAL_MINUTES);
+    const current = loadConfig();
+    current.intervalMinutes = val;
+    saveConfig(current);
+    let s = loadState();
+    s = updateMissed(s);
+    saveState(s);
+    render(s);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initIntervalControls();
+
+  let state = loadState();
+  state = updateMissed(state);
+  saveState(state);
+  render(state);
+
+  const waterBtn = document.getElementById('waterBtn');
+  const tree = document.getElementById('tree');
+  function tryWater() {
+    let s = loadState();
+    if (!canWaterNow(s)) return;
+    s = water(s);
+    rainEffect();
+    s = updateMissed(s);
+    saveState(s);
+    render(s);
+  }
+  waterBtn.addEventListener('click', tryWater);
+  tree.addEventListener('click', tryWater);
+
+  document.getElementById('resetBtn').addEventListener('click', resetAll);
+
+  // Anzeige regelmäßig aktualisieren
+  setInterval(() => {
+    let s = loadState();
+    s = updateMissed(s);
+    saveState(s);
+    render(s);
+  }, 5000);
+});
