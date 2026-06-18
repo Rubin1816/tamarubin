@@ -65,13 +65,23 @@ h1 { margin: 0 0 8px 0; font-size: 28px; }
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid #e5e7eb;
+  transition: background 600ms ease;
 }
 #ground {
   position: absolute;
   bottom: 0; left:0; right:0;
   height: 80px;
   background: linear-gradient(0deg, #8bc34a 0%, #a5d66a 60%, transparent 100%);
+  transition: background 600ms ease;
 }
+/* Abendrot-Theme bei Meilenstein */
+#treeArea.evening {
+  background: linear-gradient(180deg, #ff9966 0%, #ff5e62 100%);
+}
+#treeArea.evening #ground {
+  background: linear-gradient(0deg, #d9a441 0%, #e7c66b 60%, transparent 100%);
+}
+
 #tree {
   position: absolute;
   bottom: 80px;
@@ -92,7 +102,7 @@ h1 { margin: 0 0 8px 0; font-size: 28px; }
   transition: transform 220ms ease, background 220ms ease;
 }
 
-/* Stamm (klein startend) – skaliert über var(--trunk-scale) */
+/* Stamm – klein startend, skaliert über var(--trunk-scale) */
 #tree::before {
   bottom: 0;
   width: 10px;
@@ -103,14 +113,14 @@ h1 { margin: 0 0 8px 0; font-size: 28px; }
   transform: translateX(-50%) scale(var(--trunk-scale));
 }
 
-/* Krone (klein startend) – skaliert über var(--crown-scale) */
+/* Krone – klein startend, skaliert über var(--crown-scale) */
 #tree::after {
   bottom: 26px;
   width: 60px;
   height: 60px;
   background: var(--c-green);
   border-radius: 50%;
-  filter: drop-shadow(0 8px 12px rgba(46,125,50,0.35));
+  filter: drop-shadow(0 8px 12px rgba(0,0,0,0.35));
   transform: translateX(-50%) scale(var(--crown-scale));
 }
 
@@ -119,37 +129,4 @@ h1 { margin: 0 0 8px 0; font-size: 28px; }
 .color-red::after   { background: var(--c-red); }
 .color-yellow::after{ background: var(--c-yellow); }
 .color-pink::after  { background: var(--c-pink); }
-.color-white::after { background: var(--c-white); }
-
-/* Statusfarben */
-.alive .badge { background: #ecfdf5; color: #065f46; }
-.warning .badge { background: #fffbeb; color: var(--warning); }
-.dead .badge { background: #fef2f2; color: var(--danger); }
-
-.controls { display: flex; gap: 8px; margin: 12px 0 0 0; flex-wrap: wrap; }
-button { appearance: none; border: none; background: var(--accent); color: white; font-weight: 600; padding: 10px 14px; border-radius: 12px; cursor: pointer; transition: transform .05s ease, background .2s ease, opacity .2s ease; }
-button:hover { background: var(--accent-dark); }
-button:active { transform: translateY(1px); }
-button:disabled { opacity: 0.6; cursor: not-allowed; }
-button.ghost { background: #eef2f7; color: #374151; }
-.hint { color: var(--muted); font-size: 14px; margin-top: 12px; }
-footer { text-align: center; color: var(--muted); margin: 8px 0 24px; font-size: 13px; }
-
-/* Regen-Animation beim Gießen */
-@keyframes rain {
-  0%   { opacity: 0; transform: translate(-50%, -120px) scale(0.8); }
-  10%  { opacity: 1; }
-  100% { opacity: 0; transform: translate(-50%, 30px) scale(1.1); }
-}
-.drop {
-  position: absolute;
-  top: -10px;
-  left: 50%;
-  width: 6px;
-  height: 10px;
-  background: rgba(66,153,225,0.9);
-  border-radius: 3px;
-  transform: translateX(-50%);
-  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.15));
-  animation: rain 700ms ease forwards;
-}
+.color-white::after {
