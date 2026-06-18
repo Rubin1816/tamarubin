@@ -1,11 +1,11 @@
-// Einfache Tageslogik ohne Regler: 1 Kalendertag pro "Tag"
-// - Pro Tag einmal gießen -> growth +1
+// Baum mit Farbwechsel (grün → rot → gelb → pink → weiß) und kontinuierlichem Wachstum
+// - Pro Kalendertag einmal gießen => growth +1 und Farbindex +1 (zyklisch)
 // - 3 verpasste Tage => tot
-// - Wachstumsstufen von seed bis giant
+// - Start: klein; wächst bei jedem Gießen per Skalierung (Stamm + Krone)
 
-const STORAGE_KEY = 'treeState.v4'; // neue Version, um alte Regler-Konfig zu ignorieren
+const STORAGE_KEY = 'treeState.v5';
 
-// Hilfsfunktionen für Kalendertage (lokal)
+// Datumshilfen (Kalendertage, lokal)
 function todayKey(d = new Date()) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -21,17 +21,21 @@ function daysBetween(dateA, dateB) {
   return Math.round(diffMs / (1000 * 60 * 60 * 24));
 }
 
+// Farben in Reihenfolge
+const COLORS = ['green', 'red', 'yellow', 'pink', 'white'];
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
       return {
         lastWateredDate: null, // 'YYYY-MM-DD'
-        growth: 0,             // 0 = seed
+        growth: 0,             // Wachstumsschritte
+        colorIndex: 0,         // zeigt auf COLORS
         dead: false,
         missedDays: 0,
         createdDate: todayKey(),
-        version: 4
+        version: 5
       };
     }
     return JSON.parse(raw);
@@ -61,22 +65,31 @@ function water(state) {
   if (!canWaterToday(state)) return state;
   state.lastWateredDate = todayKey();
   state.growth = (state.growth || 0) + 1;
+  state.colorIndex = (state.colorIndex + 1) % COLORS.length; // Farbe weiterschalten
   state.missedDays = 0;
   state.dead = false;
   saveState(state);
   return state;
 }
 
-// Wachstumsstufen: 0 seed, 1 sprout, 2 seedling, 3 sapling, 4-6 small, 7-11 medium, 12-17 large, 18+ giant
-function growthStageClass(growth) {
-  if (growth <= 0) return 'tree-seed';
-  if (growth <= 1) return 'tree-sprout';
-  if (growth <= 2) return 'tree-seedling';
-  if (growth <= 3) return 'tree-sapling';
-  if (growth <= 6) return 'tree-small';
-  if (growth <= 11) return 'tree-medium';
-  if (growth <= 17) return 'tree-large';
-  return 'tree-giant';
+// Wachstumsdarstellung: kontinuierliche Skalierung
+// Basisskalen (klein starten), Wachstum pro Gießen: +6% Größe bis Max
+function computeScales(growth) {
+  const baseTrunk = 1.0;    // Stamm-Basis
+  const baseCrown = 1.0;    // Krone-Basis
+  const step = 0.06;        // pro Gießen 6% größer
+  const maxScale = 2.2;     // obere Grenze
+  const trunkScale = Math.min(maxScale, baseTrunk + growth * step);
+  const crownScale = Math.min(maxScale, baseCrown + growth * step);
+  return { trunkScale, crownScale };
+}
+
+function applyColorClass(treeEl, colorIndex) {
+  // alle Farbklassen entfernen, neue hinzufügen
+  const classes = ['color-green','color-red','color-yellow','color-pink','color-white'];
+  classes.forEach(c => treeEl.classList.remove(c));
+  const cname = `color-${COLORS[colorIndex]}`;
+  treeEl.classList.add(cname);
 }
 
 function render(state) {
@@ -104,12 +117,36 @@ function render(state) {
     waterBtn.disabled = !canWaterToday(state);
   }
 
-  tree.className = '';
-  tree.classList.add(growthStageClass(state.growth));
+  // Farbe anwenden
+  applyColorClass(tree, state.colorIndex);
+
+  // Größe anwenden (Skalierung Stamm + Krone)
+  const { trunkScale, crownScale } = computeScales(state.growth);
+  // Setze CSS-Varianten via style.transform auf den ::before/::after-Elementen:
+  // Wir nutzen CSS-Variablen durch Inline-Styles tricksen? Pseudo-Elemente nehmen kein Inline-Style an.
+  // Lösung: setze transform auf den Container und kompensiere Position.
+  // Besser: wir steuern beide Pseudo-Elemente über CSS-Variablen.
+  tree.style.setProperty('--trunk-scale', trunkScale);
+  tree.style.setProperty('--crown-scale', crownScale);
+
+  // Da Pseudo-Elemente keine Inline-Styles lesen, definieren wir diese Variablen in CSS via transform: scale(var(--...))
+  // (siehe unten in ensureScaleStyles())
 
   streakEl.textContent = `Gieß-Zähler: ${state.growth}`;
   lastEl.textContent = `Zuletzt gegossen: ${state.lastWateredDate ? state.lastWateredDate : '–'}`;
   daysEl.textContent = `Tage seit letztem Gießen: ${state.lastWateredDate ? state.missedDays : '–'}`;
+}
+
+function ensureScaleStyles() {
+  // Fügt einmalig CSS ein, damit ::before/::after die Skalierung aus Variablen lesen.
+  if (document.getElementById('dynamic-scale-style')) return;
+  const style = document.createElement('style');
+  style.id = 'dynamic-scale-style';
+  style.textContent = `
+    #tree::before { transform: translateX(-50%) scale(var(--trunk-scale, 1)); }
+    #tree::after  { transform: translateX(-50%) scale(var(--crown-scale, 1)); }
+  `;
+  document.head.appendChild(style);
 }
 
 function rainEffect() {
@@ -132,6 +169,8 @@ function resetAll() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  ensureScaleStyles();
+
   let state = loadState();
   state = updateMissedDays(state);
   saveState(state);
@@ -153,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('resetBtn').addEventListener('click', resetAll);
 
-  // Einmal pro Minute neu bewerten (optional, für visuelle Aktualisierung über Mitternacht)
+  // Über Nacht Status aktualisieren
   setInterval(() => {
     let s = loadState();
     s = updateMissedDays(s);
