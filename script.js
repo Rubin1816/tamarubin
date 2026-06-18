@@ -1,56 +1,73 @@
-const STORAGE_KEY = 'treeState.v3';
-const CONFIG_KEY  = 'treeConfig.v2';
-const DEFAULT_INTERVAL_MINUTES = 1440;
+// Einfache Tageslogik ohne Regler: 1 Kalendertag pro "Tag"
+// - Pro Tag einmal gießen -> growth +1
+// - 3 verpasste Tage => tot
+// - Wachstumsstufen von seed bis giant
 
-const qs  = (s) => document.querySelector(s);
+const STORAGE_KEY = 'treeState.v4'; // neue Version, um alte Regler-Konfig zu ignorieren
 
-function now() { return Date.now(); }
-
-function loadConfig() {
-  try {
-    const c = JSON.parse(localStorage.getItem(CONFIG_KEY) || 'null') || {};
-    return { intervalMinutes: c.intervalMinutes || DEFAULT_INTERVAL_MINUTES };
-  } catch { return { intervalMinutes: DEFAULT_INTERVAL_MINUTES }; }
+// Hilfsfunktionen für Kalendertage (lokal)
+function todayKey(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
-function saveConfig(cfg) { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)); }
+function daysBetween(dateA, dateB) {
+  const a = new Date(dateA);
+  const b = new Date(dateB);
+  a.setHours(0,0,0,0);
+  b.setHours(0,0,0,0);
+  const diffMs = b - a;
+  return Math.round(diffMs / (1000 * 60 * 60 * 24));
+}
 
 function loadState() {
   try {
-    const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-    return s || { lastWateredTs: null, growth: 0, dead: false, missedIntervals: 0, createdTs: now(), version: 3 };
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      return {
+        lastWateredDate: null, // 'YYYY-MM-DD'
+        growth: 0,             // 0 = seed
+        dead: false,
+        missedDays: 0,
+        createdDate: todayKey(),
+        version: 4
+      };
+    }
+    return JSON.parse(raw);
   } catch {
-    return { lastWateredTs: null, growth: 0, dead: false, missedIntervals: 0, createdTs: now(), version: 3 };
+    localStorage.removeItem(STORAGE_KEY);
+    return loadState();
   }
 }
-function saveState(state) { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-
-function msPerInterval() { return loadConfig().intervalMinutes * 60 * 1000; }
-
-function computeMissedIntervals(state) {
-  const anchor = state.lastWateredTs ?? state.createdTs;
-  const elapsed = Math.max(0, now() - anchor);
-  return Math.floor(elapsed / msPerInterval());
+function saveState(state) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
-function updateMissed(state) {
-  state.missedIntervals = computeMissedIntervals(state);
-  if (state.missedIntervals >= 3) state.dead = true;
+
+function canWaterToday(state) {
+  return !state.dead && state.lastWateredDate !== todayKey();
+}
+
+function updateMissedDays(state) {
+  const today = todayKey();
+  const anchor = state.lastWateredDate || state.createdDate;
+  const diff = daysBetween(anchor, today);
+  state.missedDays = Math.max(0, diff);
+  if (state.missedDays >= 3) state.dead = true;
   return state;
 }
-function canWaterNow(state) {
-  if (state.dead) return false;
-  if (state.lastWateredTs === null) return true;
-  return computeMissedIntervals(state) >= 1;
-}
+
 function water(state) {
-  if (!canWaterNow(state)) return state;
-  state.lastWateredTs = now();
+  if (!canWaterToday(state)) return state;
+  state.lastWateredDate = todayKey();
   state.growth = (state.growth || 0) + 1;
-  state.missedIntervals = 0;
+  state.missedDays = 0;
   state.dead = false;
   saveState(state);
   return state;
 }
 
+// Wachstumsstufen: 0 seed, 1 sprout, 2 seedling, 3 sapling, 4-6 small, 7-11 medium, 12-17 large, 18+ giant
 function growthStageClass(growth) {
   if (growth <= 0) return 'tree-seed';
   if (growth <= 1) return 'tree-sprout';
@@ -63,13 +80,13 @@ function growthStageClass(growth) {
 }
 
 function render(state) {
-  const container = qs('.container');
-  const badge = qs('#healthBadge');
-  const streakEl = qs('#streak');
-  const lastEl = qs('#lastWatered');
-  const daysEl = qs('#daysSince');
-  const tree = qs('#tree');
-  const waterBtn = qs('#waterBtn');
+  const container = document.querySelector('.container');
+  const badge = document.getElementById('healthBadge');
+  const streakEl = document.getElementById('streak');
+  const lastEl = document.getElementById('lastWatered');
+  const daysEl = document.getElementById('daysSince');
+  const tree = document.getElementById('tree');
+  const waterBtn = document.getElementById('waterBtn');
 
   container.classList.remove('alive', 'warning', 'dead');
 
@@ -77,29 +94,26 @@ function render(state) {
     container.classList.add('dead');
     badge.textContent = 'Status: Tot 🌧️';
     waterBtn.disabled = true;
-  } else if (state.missedIntervals >= 2) {
+  } else if (state.missedDays >= 2) {
     container.classList.add('warning');
     badge.textContent = 'Status: Kritisch! 🥀';
-    waterBtn.disabled = !canWaterNow(state);
+    waterBtn.disabled = !canWaterToday(state);
   } else {
     container.classList.add('alive');
     badge.textContent = 'Status: Gesund 🌿';
-    waterBtn.disabled = !canWaterNow(state);
+    waterBtn.disabled = !canWaterToday(state);
   }
-
-  const mins = loadConfig().intervalMinutes;
-  const lastStr = state.lastWateredTs ? new Date(state.lastWateredTs).toLocaleString() : '–';
 
   tree.className = '';
   tree.classList.add(growthStageClass(state.growth));
 
   streakEl.textContent = `Gieß-Zähler: ${state.growth}`;
-  lastEl.textContent = `Zuletzt gegossen: ${lastStr}`;
-  daysEl.textContent = `Verpasste Intervalle: ${state.lastWateredTs ? state.missedIntervals : '–'} (Intervall: ${mins} Min)`;
+  lastEl.textContent = `Zuletzt gegossen: ${state.lastWateredDate ? state.lastWateredDate : '–'}`;
+  daysEl.textContent = `Tage seit letztem Gießen: ${state.lastWateredDate ? state.missedDays : '–'}`;
 }
 
 function rainEffect() {
-  const area = qs('#treeArea');
+  const area = document.getElementById('treeArea');
   for (let i = 0; i < 12; i++) {
     const drop = document.createElement('div');
     drop.className = 'drop';
@@ -114,57 +128,36 @@ function resetAll() {
   localStorage.removeItem(STORAGE_KEY);
   const init = loadState();
   saveState(init);
-  render(updateMissed(init));
-}
-
-function initIntervalControls() {
-  const slider = qs('#intervalMinutes');
-  const label = qs('#intervalLabel');
-  const cfg = loadConfig();
-  slider.value = String(cfg.intervalMinutes);
-  label.textContent = String(cfg.intervalMinutes);
-
-  slider.addEventListener('input', (e) => {
-    label.textContent = String(parseInt(e.target.value, 10));
-  });
-  slider.addEventListener('change', (e) => {
-    const val = Math.max(1, parseInt(e.target.value, 10) || DEFAULT_INTERVAL_MINUTES);
-    saveConfig({ intervalMinutes: val });
-    let s = loadState();
-    s = updateMissed(s);
-    saveState(s);
-    render(s);
-  });
+  render(updateMissedDays(init));
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  initIntervalControls();
-
   let state = loadState();
-  state = updateMissed(state);
+  state = updateMissedDays(state);
   saveState(state);
   render(state);
 
-  const waterBtn = qs('#waterBtn');
-  const tree = qs('#tree');
+  const waterBtn = document.getElementById('waterBtn');
+  const tree = document.getElementById('tree');
   function tryWater() {
     let s = loadState();
-    if (!canWaterNow(s)) return;
+    if (!canWaterToday(s)) return;
     s = water(s);
     rainEffect();
-    s = updateMissed(s);
+    s = updateMissedDays(s);
     saveState(s);
     render(s);
   }
   waterBtn.addEventListener('click', tryWater);
   tree.addEventListener('click', tryWater);
 
-  qs('#resetBtn').addEventListener('click', resetAll);
+  document.getElementById('resetBtn').addEventListener('click', resetAll);
 
+  // Einmal pro Minute neu bewerten (optional, für visuelle Aktualisierung über Mitternacht)
   setInterval(() => {
     let s = loadState();
-    s = updateMissed(s);
+    s = updateMissedDays(s);
     saveState(s);
     render(s);
-  }, 5000);
+  }, 60000);
 });
