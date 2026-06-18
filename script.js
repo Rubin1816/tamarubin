@@ -1,169 +1,178 @@
-// Einfache Tamagotchi-Baum-Logik mit localStorage
-// Regeln:
-// - Pro Kalendertag genau einmal gießen
-// - Tage ohne Gießen addieren sich; ab 3 Tagen = tot
-// - Wachstum steigt um 1 pro Gießtag
-
-const STORAGE_KEY = 'treeState.v1';
-
-// Hilfsfunktionen für Datum ohne Uhrzeit (lokales Datum)
-function todayKey(d = new Date()) {
-  // YYYY-MM-DD (lokal)
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+:root{
+  --bg: #f3f7fb;
+  --text: #1f2937;
+  --accent: #2f855a;
+  --accent-dark: #276749;
+  --warning: #b45309;
+  --danger: #b91c1c;
+  --card: #ffffff;
+  --muted: #6b7280;
 }
-function daysBetween(dateA, dateB) {
-  // Nur Datum (Mitternacht local) vergleichen
-  const a = new Date(dateA);
-  const b = new Date(dateB);
-  a.setHours(0,0,0,0);
-  b.setHours(0,0,0,0);
-  const diffMs = b - a;
-  return Math.round(diffMs / (1000 * 60 * 60 * 24));
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color: var(--text);
+  background: linear-gradient(180deg, #e7f0ff 0%, var(--bg) 100%);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
-
-function loadState() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return {
-      lastWateredDate: null, // 'YYYY-MM-DD'
-      growth: 0,
-      dead: false,
-      missedDays: 0,
-      createdDate: todayKey(),
-      version: 1
-    };
-  }
-  try {
-    return JSON.parse(raw);
-  } catch {
-    // Fallback bei korrupten Daten
-    localStorage.removeItem(STORAGE_KEY);
-    return loadState();
-  }
+.container {
+  margin: 24px auto;
+  padding: 16px;
+  max-width: 560px;
+  width: 100%;
+  background: var(--card);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
 }
-
-function saveState(state) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+h1 { margin: 0 0 8px 0; font-size: 28px; }
+.status {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  align-items: center;
+  margin-bottom: 16px;
 }
-
-function updateMissedDays(state) {
-  const today = todayKey();
-  // Wenn noch nie gegossen wurde, zählen verpasste Tage ab Erstellungsdatum
-  const anchor = state.lastWateredDate || state.createdDate;
-  const diff = daysBetween(anchor, today);
-  // Wenn heute schon gegossen (anchor == today), diff = 0
-  // Wenn z. B. anchor = vorgestern und heute = heute, diff = 2 => 1 Tag verpasst? Nein: 
-  // Definition: Tage seit letztem Gießen (ohne den Gießtag). Also diff Tage.
-  state.missedDays = Math.max(0, diff);
-  if (state.missedDays >= 3) {
-    state.dead = true;
-  }
-  return state;
+.badge {
+  grid-column: 1 / -1;
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #e6fffa;
+  color: var(--accent-dark);
+  font-weight: 600;
+  width: max-content;
 }
+.meta { color: var(--muted); font-size: 14px; }
 
-function canWaterToday(state) {
-  const today = todayKey();
-  return !state.dead && state.lastWateredDate !== today;
+#treeArea {
+  position: relative;
+  height: 300px;
+  background: linear-gradient(180deg, #cfe8ff 0%, #e7f0ff 100%);
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
 }
-
-function water(state) {
-  if (!canWaterToday(state)) return state;
-
-  const today = todayKey();
-  state.lastWateredDate = today;
-  state.growth = (state.growth || 0) + 1;
-  state.missedDays = 0; // reset, weil heute gegossen
-  state.dead = false;   // falls zuvor gewarnt, wieder gesund
-  saveState(state);
-  return state;
+#ground {
+  position: absolute;
+  bottom: 0;
+  left:0; right:0;
+  height: 80px;
+  background: linear-gradient(0deg, #8bc34a 0%, #a5d66a 60%, transparent 100%);
+}
+#tree {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 140px;
+  height: 180px;
+  cursor: pointer;
 }
 
-function growthStage(growth) {
-  if (growth < 2) return 'tree-small';
-  if (growth < 5) return 'tree-medium';
-  if (growth < 10) return 'tree-large';
-  return 'tree-giant';
+/* Basisformen: Stamm und Krone (werden je Stufe angepasst) */
+#tree::before {
+  /* Stamm */
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 70px;
+  background: #7b4b2a;
+  border-radius: 6px;
+  box-shadow: inset 0 -6px 0 rgba(0,0,0,0.1);
+}
+#tree::after {
+  /* Krone */
+  content: "";
+  position: absolute;
+  bottom: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 140px;
+  height: 140px;
+  background: radial-gradient(circle at 40% 40%, #66bb6a 0%, #43a047 60%, #2e7d32 100%);
+  border-radius: 50%;
+  filter: drop-shadow(0 8px 12px rgba(46,125,50,0.35));
 }
 
-function render(state) {
-  const container = document.querySelector('.container');
-  const badge = document.getElementById('healthBadge');
-  const streakEl = document.getElementById('streak');
-  const lastEl = document.getElementById('lastWatered');
-  const daysEl = document.getElementById('daysSince');
-  const tree = document.getElementById('tree');
-  const waterBtn = document.getElementById('waterBtn');
+/* WACHSTUMSSTUFEN */
+.tree-seed::before    { width: 8px; height: 10px; bottom: 0; background: #6b4f2a; border-radius: 4px; }
+.tree-seed::after     { width: 0; height: 0; }
 
-  // Klassen für Status
-  container.classList.remove('alive', 'warning', 'dead');
-  if (state.dead) {
-    container.classList.add('dead');
-    badge.textContent = 'Status: Tot 🌧️';
-    waterBtn.disabled = true;
-  } else if (state.missedDays >= 2) {
-    container.classList.add('warning');
-    badge.textContent = 'Status: Kritisch! 🥀';
-    waterBtn.disabled = !canWaterToday(state);
-  } else {
-    container.classList.add('alive');
-    badge.textContent = 'Status: Gesund 🌿';
-    waterBtn.disabled = !canWaterToday(state);
-  }
+.tree-sprout::before  { width: 6px; height: 14px; background: #6b4f2a; }
+.tree-sprout::after   { width: 20px; height: 12px; bottom: 12px; border-radius: 12px 12px 12px 12px; background: linear-gradient(180deg, #7ed957, #46a049); }
 
-  // Baumgröße
-  tree.className = ''; // reset
-  tree.classList.add(growthStage(state.growth));
+.tree-seedling::before{ width: 8px; height: 20px; }
+.tree-seedling::after { width: 36px; height: 24px; bottom: 20px; border-radius: 18px; }
 
-  streakEl.textContent = `Gieß-Tage: ${state.growth}`;
-  lastEl.textContent = `Zuletzt gegossen: ${state.lastWateredDate ? state.lastWateredDate : '–'}`;
-  daysEl.textContent = `Tage seit letztem Gießen: ${state.lastWateredDate ? state.missedDays : '–'}`;
+.tree-sapling::before { width: 12px; height: 40px; }
+.tree-sapling::after  { width: 70px; height: 50px; bottom: 36px; border-radius: 30px; }
+
+.tree-small::before   { width: 16px; height: 55px; }
+.tree-small::after    { width: 90px;  height: 90px;  bottom: 46px; }
+
+.tree-medium::before  { width: 20px; height: 70px; }
+.tree-medium::after   { width: 120px; height: 120px; bottom: 52px; }
+
+.tree-large::before   { width: 24px; height: 85px; }
+.tree-large::after    { width: 160px; height: 160px; bottom: 60px; }
+
+.tree-giant::before   { width: 30px; height: 100px; }
+.tree-giant::after    { width: 210px; height: 210px; bottom: 74px; }
+
+.controls {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 0 0;
+  flex-wrap: wrap;
 }
-
-function rainEffect() {
-  const area = document.getElementById('treeArea');
-  for (let i = 0; i < 12; i++) {
-    const drop = document.createElement('div');
-    drop.className = 'drop';
-    drop.style.left = `${30 + Math.random()*40}%`;
-    drop.style.animationDelay = `${i * 40}ms`;
-    area.appendChild(drop);
-    setTimeout(() => drop.remove(), 900);
-  }
+.controls.interval {
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
 }
-
-function resetAll() {
-  localStorage.removeItem(STORAGE_KEY);
-  const init = loadState();
-  saveState(init);
-  render(updateMissedDays(init));
+button {
+  appearance: none;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform .05s ease, background .2s ease, opacity .2s ease;
 }
+button:hover { background: var(--accent-dark); }
+button:active { transform: translateY(1px); }
+button:disabled { opacity: 0.6; cursor: not-allowed; }
+button.ghost { background: #eef2f7; color: #374151; }
+.hint { color: var(--muted); font-size: 14px; margin-top: 12px; }
+footer { text-align: center; color: var(--muted); margin: 8px 0 24px; font-size: 13px; }
 
-document.addEventListener('DOMContentLoaded', () => {
-  let state = loadState();
-  // Beim Laden prüfen, ob Baum aufgrund verpasster Tage stirbt
-  state = updateMissedDays(state);
-  saveState(state);
-  render(state);
+.alive .badge { background: #ecfdf5; color: #065f46; }
+.warning .badge { background: #fffbeb; color: var(--warning); }
+.dead .badge { background: #fef2f2; color: var(--danger); }
 
-  // Klick-Handler: Baum gießen
-  const waterBtn = document.getElementById('waterBtn');
-  const tree = document.getElementById('tree');
-  function tryWater() {
-    let s = loadState();
-    if (!canWaterToday(s)) return;
-    s = water(s);
-    rainEffect();
-    // Nach dem Gießen neu berechnen und rendern
-    s = updateMissedDays(s);
-    saveState(s);
-    render(s);
-  }
-  waterBtn.addEventListener('click', tryWater);
-  tree.addEventListener('click', tryWater);
-
-  // Neustart
-  document.getElementById('resetBtn').addEventListener('click', resetAll);
-});
+/* Regen-Animation */
+@keyframes rain {
+  0%   { opacity: 0; transform: translate(-50%, -120px) scale(0.8); }
+  10%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, 30px) scale(1.1); }
+}
+.drop {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 6px;
+  height: 10px;
+  background: rgba(66,153,225,0.9);
+  border-radius: 3px;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.15));
+  animation: rain 700ms ease forwards;
+}
