@@ -13,7 +13,7 @@
       <div id="healthBadge" class="badge">Status: –</div>
       <div id="streak" class="meta">Gieß-Tage: 0</div>
       <div id="lastWatered" class="meta">Zuletzt gegossen: –</div>
-      <div id="daysSince" class="meta">Tage seit letztem Gießen: –</div>
+      <div id="daysSince" class="meta">Verpasste Intervalle: –</div>
     </div>
 
     <div id="treeArea">
@@ -26,8 +26,18 @@
       <button id="resetBtn" class="ghost">Neustart</button>
     </div>
 
+    <section class="controls interval">
+      <label for="intervalMinutes">
+        „Tages“-Länge: <strong><span id="intervalLabel">1440</span> Minuten</strong>
+      </label>
+      <input id="intervalMinutes" type="range" min="1" max="1440" step="1" value="1440" />
+      <p class="hint">
+        Stelle ein, wie viele Minuten ein „Tag“ dauert. Nach 3 verpassten „Tagen“ stirbt der Baum.
+      </p>
+    </section>
+
     <p class="hint">
-      Hinweis: Du kannst den Baum nur einmal pro Kalendertag gießen. Wenn du 3 Tage gar nicht eingeloggt/gegossen hast, stirbt der Baum.
+      Standard: 1440 Minuten (= 24h). Für Tests gern auf 1 Minute stellen.
     </p>
   </main>
 
@@ -38,3 +48,4 @@
   <script src="script.js"></script>
 </body>
 </html>
+
