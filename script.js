@@ -1,78 +1,46 @@
-// Tamagotchi-Baum mit einstellbarer "Tageslänge" und feinen Wachstumsstufen
-// - Start als Setzling (eigentlich Saat -> Keim -> Setzling ...)
-// - Pro Intervall einmal gießen = Wachstum +1
-// - Nach 3 verpassten Intervallen = tot
-
-const STORAGE_KEY = 'treeState.v3';      // neue Version wegen Stufen
+const STORAGE_KEY = 'treeState.v3';
 const CONFIG_KEY  = 'treeConfig.v2';
-
 const DEFAULT_INTERVAL_MINUTES = 1440;
+
+const qs  = (s) => document.querySelector(s);
 
 function now() { return Date.now(); }
 
 function loadConfig() {
-  const raw = localStorage.getItem(CONFIG_KEY);
-  if (!raw) return { intervalMinutes: DEFAULT_INTERVAL_MINUTES };
   try {
-    const c = JSON.parse(raw);
-    if (!c.intervalMinutes) c.intervalMinutes = DEFAULT_INTERVAL_MINUTES;
-    return c;
-  } catch {
-    return { intervalMinutes: DEFAULT_INTERVAL_MINUTES };
-  }
+    const c = JSON.parse(localStorage.getItem(CONFIG_KEY) || 'null') || {};
+    return { intervalMinutes: c.intervalMinutes || DEFAULT_INTERVAL_MINUTES };
+  } catch { return { intervalMinutes: DEFAULT_INTERVAL_MINUTES }; }
 }
-function saveConfig(cfg) {
-  localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
-}
+function saveConfig(cfg) { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)); }
 
 function loadState() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return {
-      lastWateredTs: null,
-      growth: 0,          // 0 = seed (Saat)
-      dead: false,
-      missedIntervals: 0,
-      createdTs: now(),
-      version: 3
-    };
-  }
   try {
-    return JSON.parse(raw);
+    const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    return s || { lastWateredTs: null, growth: 0, dead: false, missedIntervals: 0, createdTs: now(), version: 3 };
   } catch {
-    localStorage.removeItem(STORAGE_KEY);
-    return loadState();
+    return { lastWateredTs: null, growth: 0, dead: false, missedIntervals: 0, createdTs: now(), version: 3 };
   }
 }
-function saveState(state) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
+function saveState(state) { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
-function msPerInterval() {
-  const cfg = loadConfig();
-  return cfg.intervalMinutes * 60 * 1000;
-}
+function msPerInterval() { return loadConfig().intervalMinutes * 60 * 1000; }
 
 function computeMissedIntervals(state) {
   const anchor = state.lastWateredTs ?? state.createdTs;
   const elapsed = Math.max(0, now() - anchor);
-  const intervals = Math.floor(elapsed / msPerInterval());
-  return intervals;
+  return Math.floor(elapsed / msPerInterval());
 }
-
 function updateMissed(state) {
   state.missedIntervals = computeMissedIntervals(state);
   if (state.missedIntervals >= 3) state.dead = true;
   return state;
 }
-
 function canWaterNow(state) {
   if (state.dead) return false;
   if (state.lastWateredTs === null) return true;
-  const missed = computeMissedIntervals(state);
-  return missed >= 1;
+  return computeMissedIntervals(state) >= 1;
 }
-
 function water(state) {
   if (!canWaterNow(state)) return state;
   state.lastWateredTs = now();
@@ -83,12 +51,11 @@ function water(state) {
   return state;
 }
 
-// Mehr Stufen: 0 seed, 1 sprout, 2 seedling, 3 sapling, 4 small, 7 medium, 12 large, 18 giant
 function growthStageClass(growth) {
-  if (growth <= 0) return 'tree-seed';          // Saat
-  if (growth <= 1) return 'tree-sprout';        // Keim
-  if (growth <= 2) return 'tree-seedling';      // Setzling
-  if (growth <= 3) return 'tree-sapling';       // Jungbaum
+  if (growth <= 0) return 'tree-seed';
+  if (growth <= 1) return 'tree-sprout';
+  if (growth <= 2) return 'tree-seedling';
+  if (growth <= 3) return 'tree-sapling';
   if (growth <= 6) return 'tree-small';
   if (growth <= 11) return 'tree-medium';
   if (growth <= 17) return 'tree-large';
@@ -96,13 +63,13 @@ function growthStageClass(growth) {
 }
 
 function render(state) {
-  const container = document.querySelector('.container');
-  const badge = document.getElementById('healthBadge');
-  const streakEl = document.getElementById('streak');
-  const lastEl = document.getElementById('lastWatered');
-  const daysEl = document.getElementById('daysSince');
-  const tree = document.getElementById('tree');
-  const waterBtn = document.getElementById('waterBtn');
+  const container = qs('.container');
+  const badge = qs('#healthBadge');
+  const streakEl = qs('#streak');
+  const lastEl = qs('#lastWatered');
+  const daysEl = qs('#daysSince');
+  const tree = qs('#tree');
+  const waterBtn = qs('#waterBtn');
 
   container.classList.remove('alive', 'warning', 'dead');
 
@@ -120,11 +87,9 @@ function render(state) {
     waterBtn.disabled = !canWaterNow(state);
   }
 
-  const cfg = loadConfig();
-  const mins = cfg.intervalMinutes;
+  const mins = loadConfig().intervalMinutes;
   const lastStr = state.lastWateredTs ? new Date(state.lastWateredTs).toLocaleString() : '–';
 
-  // Baumklasse setzen
   tree.className = '';
   tree.classList.add(growthStageClass(state.growth));
 
@@ -134,7 +99,7 @@ function render(state) {
 }
 
 function rainEffect() {
-  const area = document.getElementById('treeArea');
+  const area = qs('#treeArea');
   for (let i = 0; i < 12; i++) {
     const drop = document.createElement('div');
     drop.className = 'drop';
@@ -153,8 +118,8 @@ function resetAll() {
 }
 
 function initIntervalControls() {
-  const slider = document.getElementById('intervalMinutes');
-  const label = document.getElementById('intervalLabel');
+  const slider = qs('#intervalMinutes');
+  const label = qs('#intervalLabel');
   const cfg = loadConfig();
   slider.value = String(cfg.intervalMinutes);
   label.textContent = String(cfg.intervalMinutes);
@@ -164,9 +129,7 @@ function initIntervalControls() {
   });
   slider.addEventListener('change', (e) => {
     const val = Math.max(1, parseInt(e.target.value, 10) || DEFAULT_INTERVAL_MINUTES);
-    const current = loadConfig();
-    current.intervalMinutes = val;
-    saveConfig(current);
+    saveConfig({ intervalMinutes: val });
     let s = loadState();
     s = updateMissed(s);
     saveState(s);
@@ -182,8 +145,8 @@ document.addEventListener('DOMContentLoaded', () => {
   saveState(state);
   render(state);
 
-  const waterBtn = document.getElementById('waterBtn');
-  const tree = document.getElementById('tree');
+  const waterBtn = qs('#waterBtn');
+  const tree = qs('#tree');
   function tryWater() {
     let s = loadState();
     if (!canWaterNow(s)) return;
@@ -196,9 +159,8 @@ document.addEventListener('DOMContentLoaded', () => {
   waterBtn.addEventListener('click', tryWater);
   tree.addEventListener('click', tryWater);
 
-  document.getElementById('resetBtn').addEventListener('click', resetAll);
+  qs('#resetBtn').addEventListener('click', resetAll);
 
-  // Anzeige regelmäßig aktualisieren
   setInterval(() => {
     let s = loadState();
     s = updateMissed(s);
