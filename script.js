@@ -1,16 +1,27 @@
-// Baum-Logik (robuste, geprüfte Version):
+// Erweiterte Baum-Logik:
 // - Bis zu 40x pro rollierender Stunde gießen
-// - Bei jedem Gießen: Farbwechsel (grün→rot→gelb→pink→weiß→…)
-// - Sichtbares Wachstum (Stamm + Krone skalieren via CSS-Variablen)
-// - Abendrot bei jedem 10. Gießen für 3 Sekunden
-// - "Tod" nach 3 Stunden ohne Gießen (Demo; leicht anpassbar)
+// - Farbwechsel pro Gießen (grün→rot→gelb→pink→weiß→…)
+// - Wachstum Stamm+Krone bis Max; danach wachsen rosa Blüten separat
+// - Abendrot bei jedem 10. Gießen (kurz)
+// - "Tod" nach 3 Stunden ohne Gießen (Demo)
 
-const STORAGE_KEY = 'treeState.v8';
+const STORAGE_KEY = 'treeState.v9';
 
 const COLORS = ['green', 'red', 'yellow', 'pink', 'white'];
 const HOUR_MS = 60 * 60 * 1000;
 const MAX_WATERS_PER_HOUR = 40;
 const HOURS_TO_DEAD = 3;
+
+// Wachstums-Parameter
+const CROWN_STEP = 0.065;        // pro Gießen ~6.5%
+const TRUNK_FACTOR = 0.9;
+const CROWN_MAX = 2.4;           // Maximal-Skalierung Krone
+const TRUNK_MAX = 2.2;           // Maximal-Skalierung Stamm
+
+// Blüten-Parameter
+const BLOSSOM_START_SCALE = 0.6; // Startgröße der Blüten, wenn Baum max erreicht
+const BLOSSOM_STEP = 0.06;       // pro Gießen wachsen Blüten zusätzlich
+const BLOSSOM_MAX = 1.8;         // Obergrenze für Blüten-Skalierung
 
 const $ = (sel) => document.querySelector(sel);
 function now() { return Date.now(); }
@@ -25,7 +36,8 @@ function loadState() {
         colorIndex: 0,
         dead: false,
         waterLog: [],
-        version: 8
+        blossomGrowth: 0, // zusätzliche Wachstums-Schritte für Blüten nach Maxgröße
+        version: 9
       };
     }
     const s = JSON.parse(raw);
@@ -35,7 +47,8 @@ function loadState() {
       colorIndex: Number.isFinite(s.colorIndex) ? s.colorIndex % COLORS.length : 0,
       dead: !!s.dead,
       waterLog: Array.isArray(s.waterLog) ? s.waterLog.filter(t => typeof t === 'number') : [],
-      version: 8
+      blossomGrowth: Number.isFinite(s.blossomGrowth) ? s.blossomGrowth : 0,
+      version: 9
     };
   } catch {
     localStorage.removeItem(STORAGE_KEY);
@@ -60,7 +73,7 @@ function canWaterNow(state) {
 
 function updateAliveState(state) {
   if (state.lastWateredTs == null) {
-    state.dead = false; // vor dem ersten Gießen lebt er
+    state.dead = false;
     return state;
   }
   const elapsed = now() - state.lastWateredTs;
@@ -68,27 +81,43 @@ function updateAliveState(state) {
   return state;
 }
 
+function atMaxSize(state) {
+  // Prüfe, ob Krone/Stamm bereits Max erreicht hätten
+  const crownScale = Math.min(CROWN_MAX, 1 + state.growth * CROWN_STEP);
+  return crownScale >= CROWN_MAX - 1e-6;
+}
+
 function water(state) {
   if (!canWaterNow(state)) return state;
   const t = now();
   state.lastWateredTs = t;
   state.waterLog.push(t);
-  state.growth += 1;
   state.colorIndex = (state.colorIndex + 1) % COLORS.length;
+
+  // Wenn Baum noch nicht max: normales Wachstum
+  // Wenn Baum max: krone/stamm bleiben max, Blüten wachsen separat
+  if (!atMaxSize(state)) {
+    state.growth += 1;
+  } else {
+    state.blossomGrowth += 1;
+  }
+
   state.dead = false;
   pruneWaterLog(state);
   saveState(state);
   return state;
 }
 
-// Wachstum: pro Gießen ~6.5%, Max Krone 2.4x / Stamm 2.2x
-function computeScales(growth) {
-  const step = 0.065;
-  const crownMax = 2.4;
-  const trunkMax = 2.2;
-  const crownScale = Math.min(crownMax, 1 + growth * step);
-  const trunkScale = Math.min(trunkMax, 1 + growth * (step * 0.9));
-  return { trunkScale, crownScale };
+// Skalen berechnen
+function computeTreeScales(growth) {
+  const crown = Math.min(CROWN_MAX, 1 + growth * CROWN_STEP);
+  const trunk = Math.min(TRUNK_MAX, 1 + growth * (CROWN_STEP * TRUNK_FACTOR));
+  return { trunkScale: trunk, crownScale: crown };
+}
+function computeBlossomScale(state) {
+  if (!atMaxSize(state)) return 0; // solange nicht max, keine Blüten
+  const scale = BLOSSOM_START_SCALE + state.blossomGrowth * BLOSSOM_STEP;
+  return Math.min(BLOSSOM_MAX, scale);
 }
 
 function applyColorClass(treeEl, idx) {
@@ -97,8 +126,25 @@ function applyColorClass(treeEl, idx) {
   treeEl.classList.add(`color-${COLORS[idx]}`);
 }
 
+function ensureBlossomsExist() {
+  const tree = $('#tree');
+  let blossoms = tree.querySelector('.blossoms');
+  if (!blossoms) {
+    blossoms = document.createElement('div');
+    blossoms.className = 'blossoms';
+    // 8 kleine Blüten
+    for (let i = 1; i <= 8; i++) {
+      const b = document.createElement('div');
+      b.className = `b p${i}`;
+      blossoms.appendChild(b);
+    }
+    tree.appendChild(blossoms);
+  }
+  return blossoms;
+}
+
 function triggerEveningIfMilestone(state) {
-  if (state.growth > 0 && state.growth % 10 === 0) {
+  if ((state.growth + state.blossomGrowth) > 0 && (state.growth + state.blossomGrowth) % 10 === 0) {
     const area = $('#treeArea');
     area.classList.add('evening');
     setTimeout(() => area.classList.remove('evening'), 3000);
@@ -114,7 +160,6 @@ function render(state) {
   const tree = $('#tree');
   const waterBtn = $('#waterBtn');
 
-  // Status/Buttons
   container.classList.remove('alive', 'warning', 'dead');
 
   const watersThisHour = (pruneWaterLog(state), state.waterLog.length);
@@ -136,13 +181,25 @@ function render(state) {
   // Farbe
   applyColorClass(tree, state.colorIndex);
 
-  // Größe über CSS-Variablen
-  const { trunkScale, crownScale } = computeScales(state.growth);
+  // Baum-Skalen
+  const { trunkScale, crownScale } = computeTreeScales(state.growth);
   tree.style.setProperty('--trunk-scale', trunkScale);
   tree.style.setProperty('--crown-scale', crownScale);
 
+  // Blüten-Logik
+  const blossoms = ensureBlossomsExist();
+  const blossomScale = computeBlossomScale(state);
+  if (blossomScale > 0) {
+    tree.classList.add('blooming');
+    tree.style.setProperty('--blossom-scale', blossomScale);
+  } else {
+    tree.classList.remove('blooming');
+    tree.style.removeProperty('--blossom-scale');
+  }
+
   // Texte
-  streakEl.textContent = `Gieß-Zähler: ${state.growth}`;
+  const totalActions = state.growth + state.blossomGrowth;
+  streakEl.textContent = `Gieß-Zähler: ${totalActions}`;
   lastEl.textContent = `Zuletzt gegossen: ${state.lastWateredTs ? new Date(state.lastWateredTs).toLocaleTimeString() : '–'}`;
   hourEl.textContent = `Gießvorgänge in dieser Stunde: ${watersThisHour} / ${MAX_WATERS_PER_HOUR}`;
 }
@@ -197,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#resetBtn').addEventListener('click', resetAll);
 
-  // Regelmäßig Status aktualisieren (Limitfenster/Tod)
+  // Regelmäßige Aktualisierung
   setInterval(() => {
     let s = loadState();
     s = pruneWaterLog(s);
