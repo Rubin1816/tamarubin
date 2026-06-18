@@ -27,10 +27,7 @@ body {
   border-radius: 16px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.08);
 }
-h1 {
-  margin: 0 0 8px 0;
-  font-size: 28px;
-}
+h1 { margin: 0 0 8px 0; font-size: 28px; }
 .status {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -49,9 +46,10 @@ h1 {
   width: max-content;
 }
 .meta { color: var(--muted); font-size: 14px; }
+
 #treeArea {
   position: relative;
-  height: 280px;
+  height: 300px;
   background: linear-gradient(180deg, #cfe8ff 0%, #e7f0ff 100%);
   border-radius: 16px;
   overflow: hidden;
@@ -69,10 +67,12 @@ h1 {
   bottom: 80px;
   left: 50%;
   transform: translateX(-50%);
-  width: 120px;
-  height: 160px;
+  width: 140px;
+  height: 180px;
   cursor: pointer;
 }
+
+/* Basisformen: Stamm und Krone (werden je Stufe angepasst) */
 #tree::before {
   /* Stamm */
   content: "";
@@ -87,7 +87,7 @@ h1 {
   box-shadow: inset 0 -6px 0 rgba(0,0,0,0.1);
 }
 #tree::after {
-  /* Krone (wird per Klasse skaliert) */
+  /* Krone */
   content: "";
   position: absolute;
   bottom: 56px;
@@ -99,15 +99,42 @@ h1 {
   border-radius: 50%;
   filter: drop-shadow(0 8px 12px rgba(46,125,50,0.35));
 }
+
+/* WACHSTUMSSTUFEN */
+.tree-seed::before    { width: 8px; height: 10px; bottom: 0; background: #6b4f2a; border-radius: 4px; }
+.tree-seed::after     { width: 0; height: 0; }
+
+.tree-sprout::before  { width: 6px; height: 14px; background: #6b4f2a; }
+.tree-sprout::after   { width: 20px; height: 12px; bottom: 12px; border-radius: 12px 12px 12px 12px; background: linear-gradient(180deg, #7ed957, #46a049); }
+
+.tree-seedling::before{ width: 8px; height: 20px; }
+.tree-seedling::after { width: 36px; height: 24px; bottom: 20px; border-radius: 18px; }
+
+.tree-sapling::before { width: 12px; height: 40px; }
+.tree-sapling::after  { width: 70px; height: 50px; bottom: 36px; border-radius: 30px; }
+
+.tree-small::before   { width: 16px; height: 55px; }
 .tree-small::after    { width: 90px;  height: 90px;  bottom: 46px; }
+
+.tree-medium::before  { width: 20px; height: 70px; }
 .tree-medium::after   { width: 120px; height: 120px; bottom: 52px; }
+
+.tree-large::before   { width: 24px; height: 85px; }
 .tree-large::after    { width: 160px; height: 160px; bottom: 60px; }
+
+.tree-giant::before   { width: 30px; height: 100px; }
 .tree-giant::after    { width: 210px; height: 210px; bottom: 74px; }
 
 .controls {
   display: flex;
   gap: 8px;
   margin: 12px 0 0 0;
+  flex-wrap: wrap;
+}
+.controls.interval {
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
 }
 button {
   appearance: none;
@@ -122,23 +149,16 @@ button {
 }
 button:hover { background: var(--accent-dark); }
 button:active { transform: translateY(1px); }
-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-button.ghost {
-  background: #eef2f7;
-  color: #374151;
-}
+button:disabled { opacity: 0.6; cursor: not-allowed; }
+button.ghost { background: #eef2f7; color: #374151; }
 .hint { color: var(--muted); font-size: 14px; margin-top: 12px; }
 footer { text-align: center; color: var(--muted); margin: 8px 0 24px; font-size: 13px; }
 
-/* Visuelle Hinweise je nach Zustand */
 .alive .badge { background: #ecfdf5; color: #065f46; }
 .warning .badge { background: #fffbeb; color: var(--warning); }
 .dead .badge { background: #fef2f2; color: var(--danger); }
 
-/* Regen-Animation beim Gießen */
+/* Regen-Animation */
 @keyframes rain {
   0%   { opacity: 0; transform: translate(-50%, -120px) scale(0.8); }
   10%  { opacity: 1; }
